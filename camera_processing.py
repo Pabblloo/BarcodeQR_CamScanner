@@ -97,16 +97,15 @@ def get_events(
     interpreter: Interpreter = Interpreter(model_path=model_path)
     interpreter.allocate_tensors()
 
-    # больше значений - больше подвисаний
+    # больше значений в буффере - больше подвисаний
     MAX_IMAGES_COUNT = 1
     FRAMES_PER_CHECK = 15
     last_images = deque()
 
-    last_barcode = None
-    result_barcode = None
-    result_qr_code = None
+    last_correct_barcode: Optional[str] = None
+    # списко пар шрих- и QR-кодов (именно в таком порядке)
+    code_pairs: List[Tuple[str, str]] = []
 
-    is_result_complete = False
     is_pack_visible_now = False
     is_pack_visible_before = False
 
@@ -148,35 +147,38 @@ def get_events(
         if is_pack_visible_now:
             is_pack_visible_before = True
 
-            if is_result_complete:
+            barcode, qr_code = read_barcode_and_qr(last_images, width, height)
+            # если не смогли считать текущий штрихкод, отправляем предыдущий считанный
+            barcode = last_correct_barcode if barcode is None else barcode
+            last_correct_barcode = barcode
+
+            # если qr- или штрихкод не определён, то игнорируем эту пару
+            if barcode is None or qr_code is None:
                 continue
 
-            barcode, qr_code = read_barcode_and_qr(last_images, width, height)
-
-            result_qr_code = qr_code if result_qr_code is None else result_qr_code
-            result_barcode = barcode if result_barcode is None else result_barcode
-
-            is_result_complete = result_qr_code is not None and result_barcode is not None
+            code_pairs.append((barcode, qr_code))
             continue
 
         if not is_pack_visible_now and is_pack_visible_before:
             # пачка только что прошла, подводим итоги
 
-            # если не смогли считать текущий штрихкод, отправляем предыдущий считанный
-            result_barcode = last_barcode if result_barcode is None else result_barcode
-            last_barcode = result_barcode
+            # тёмная магия, которая эффективно удаляет повторения из списка,
+            # не меняя очерёдности элементов.
+            code_pairs = [pair for pair in dict.fromkeys(code_pairs)]
+
+            barcodes = [barcode for barcode, qr_code in code_pairs]
+            qr_codes = [qr_code for barcode, qr_code in code_pairs]
 
             yield TaskResult(
-                qr_code=result_qr_code,
-                barcode=result_barcode,
+                # TODO: fix it!
+                qr_codes=qr_codes,
+                barcodes=barcodes,
                 finish_time=datetime.now(),
             )
 
             last_images.clear()
             is_pack_visible_before = False
-            is_result_complete = False
-            result_qr_code = None
-            result_barcode = None
+            code_pairs.clear()
             continue
 
     message = "Завершение работы"
