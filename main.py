@@ -112,7 +112,7 @@ def process_event(
     elif isinstance(event, TaskError):
         message = (f"В процессе #{event.worker_id} "
                    f"произошла ошибка: {event.message}")
-        logger.info(message)
+        logger.error(message)
     elif isinstance(event, StartScanning):
         message = f"Процесс #{event.worker_id} начал сканирование"
         logger.info(message)
@@ -144,8 +144,8 @@ def process_new_result(
     (Ожидает ровно 2 запущенных процесса сканирования!)
     """
 
-    # время, за которое +- проезжает пачка (3-5 сек)
-    STORE_TIME = timedelta(seconds=7)
+    # максимальная разница проезда одной и той же пачки на разных камерах
+    MAX_CAMERAS_DIFF_TIME = timedelta(seconds=1.5)
 
     new_worker_id = new_result.worker_id
     opposite_worker_id = (new_worker_id + 1) % 2
@@ -164,6 +164,12 @@ def process_new_result(
         #  (вместо 2 кодов в одном событии пришло 2 события по 1 коду),
         #  отсутствие события с одной из камер
 
+        if r1.finish_time - r2.finish_time > MAX_CAMERAS_DIFF_TIME:
+            message = ("Разница между проездом одной и той же пачки на разных камерах "
+                       "превысила пороговое значение. (Потенциальный рассинхрон!) "
+                       f"pack2={r1} pack1={r2}")
+            logger.warning(message)
+
         is_complete1 = (len(r1.qr_codes) == expected_codes_count and
                         len(r1.barcodes) == expected_codes_count)
         is_complete2 = (len(r2.qr_codes) == expected_codes_count and
@@ -172,12 +178,11 @@ def process_new_result(
         success_result: Optional[TaskResult] = None
 
         if is_complete1 and is_complete2:
-            # TODO: очень странный и редкий случай:
-            #  возможно, тут нужны будут доп. проверки
+            # TODO: очень странный и редкий случай: нужны доп. проверки
             success_result = r1
 
             message = "QR- и штрихкоды обнаружены с обеих сторон пачки"
-            logger.info(message)
+            logger.warning(message)
 
         elif is_complete1 or is_complete2:
             success_result = r1 if is_complete1 else r2
