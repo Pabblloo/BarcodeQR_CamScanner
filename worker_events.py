@@ -20,8 +20,6 @@ class CamScannerEvent:
     Базовый класс для передачи данных от worker-процесса к управляющему процессу.
     Предназначен не для прямого использования, а для наследования.
     """
-    LOG_LEVEL: str = field(default='TRACE', repr=False)
-
     worker_id: Optional[int] = None
     start_time: Optional[datetime] = None
     finish_time: Optional[datetime] = None
@@ -30,24 +28,19 @@ class CamScannerEvent:
 
 @dataclass
 class EventWithMessage(CamScannerEvent):
-    LOG_LEVEL: str = field(default='DEBUG', repr=False)
-
+    """Информация от worker-процесса, содержащая сообщение."""
     message: Optional[str] = None
 
 
 @dataclass
 class TaskError(EventWithMessage):
     """Информация об ошибке из worker-процесса"""
-    LOG_LEVEL: str = field(default='ERROR', repr=False)
-
     message: Optional[str] = None
 
 
 @dataclass
 class TaskResult(CamScannerEvent):
     """Информация о считывании QR- и штрихкода"""
-    LOG_LEVEL: str = field(default='DEBUG', repr=False)
-
     qr_codes: List[str] = field(default_factory=list)
     barcodes: List[str] = field(default_factory=list)
 
@@ -55,10 +48,8 @@ class TaskResult(CamScannerEvent):
 @dataclass
 class EndScanning(CamScannerEvent):
     """Завершение сканирования"""
-    LOG_LEVEL: str = field(default='INFO', repr=False)
 
 
 @dataclass
 class StartScanning(CamScannerEvent):
     """Начало сканирования"""
-    LOG_LEVEL: str = field(default='INFO', repr=False)

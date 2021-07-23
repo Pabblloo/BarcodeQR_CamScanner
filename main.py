@@ -3,14 +3,14 @@ from collections import deque
 from datetime import datetime, timedelta
 from multiprocessing import Queue, Process
 from queue import Empty
-from typing import List, Callable, Iterable, Deque, Optional
+from typing import List, Callable, Iterable, Deque, Optional, Type
 
 import requests
 from dotenv import load_dotenv
 from loguru import logger
 
 from camera_processing import get_events
-from worker_events import TaskResult, CamScannerEvent, TaskError
+from worker_events import TaskResult, CamScannerEvent, TaskError, EndScanning, StartScanning
 
 
 def worker_task(
@@ -32,7 +32,6 @@ def worker_task(
     - В случае ошибок экземпляр ``TaskError`` с информацией об ошибке.
     - В случае успешной обработки экземпляр ``TaskResult`` со считанными данными.
     """
-
     events: Iterable[CamScannerEvent]
     events = get_events(
         video_url=video_url,
@@ -81,18 +80,55 @@ def get_started_processes(
 def kill_processes(processes: List[Process]) -> None:
     """Убивает процессы из списка"""
     for process in processes:
+        if not process.is_alive():
+            continue
         process.terminate()
+        process.join()
 
 
-def log_event(event: CamScannerEvent):
-    """Логгирует пришедшее от процессе событие с необходимым уровнем"""
+def process_event(
+        event: Type[CamScannerEvent],
+        results_by_process_id: List[Deque[TaskResult]],
+        processes: List[Process],
+        domain_url: str,
+        expected_codes_count: int,
+):
+    """
+    Обрабатывает событие от процесса сканирования.
+    Логирует это событие, если необходимо.
+    """
     if isinstance(event, TaskResult):
-        message = f"Получены данные от процесса: {event}"
+        message = (f"Получены данные от процесса #{event.worker_id}: "
+                   f"QR={event.qr_codes} "
+                   f"BAR={event.barcodes} "
+                   f"время конца пачки='{event.finish_time}'")
+        logger.debug(message)
+        process_new_result(
+            results_by_process_id,
+            event,
+            domain_url,
+            expected_codes_count,
+        )
     elif isinstance(event, TaskError):
-        message = f"Отловленная ошибка в процессе: {event}"
+        message = (f"В процессе #{event.worker_id} "
+                   f"произошла ошибка: {event.message}")
+        logger.info(message)
+    elif isinstance(event, StartScanning):
+        message = f"Процесс #{event.worker_id} начал сканирование"
+        logger.info(message)
+    elif isinstance(event, EndScanning):
+        message = f"Процесс #{event.worker_id} завершил работу"
+        logger.info(message)
+
+        process = processes[event.worker_id]
+        process.terminate()
+        process.join()
+        alive_count = sum(process.is_alive() for process in processes)
+        if alive_count == 0:
+            raise GeneratorExit("Все процессы завершили работу. Закрытие программы")
     else:
-        message = f"Непредусмотренное событие от процесса: {event}"
-    logger.log(event.LOG_LEVEL, message)
+        message = f"Для события не написан обработчик: {event}"
+        logger.warning(message)
 
 
 def process_new_result(
@@ -102,7 +138,8 @@ def process_new_result(
         expected_codes_count: int,
 ):
     """
-    Анализирует последние данные от сканеров и отправляет нужный запрос на сервер.
+    Обрабатывает полученные от сканера QR- и шрихкоды,
+    анализирует последние данные и отправляет нужный запрос на сервер.
 
     (Ожидает ровно 2 запущенных процесса сканирования!)
     """
@@ -282,21 +319,27 @@ def run_parent_event_loop(
             iteration_count = (iteration_count + 1) % ITERATION_PER_REQUEST
 
             try:
-                event: CamScannerEvent = queue.get(timeout=QUEUE_REQUEST_TIMEOUT_SEC)
+                event: Type[CamScannerEvent] = queue.get(timeout=QUEUE_REQUEST_TIMEOUT_SEC)
             except Empty:
                 continue
-
             event.receive_time = datetime.now()
 
-            log_event(event)
-
-            if isinstance(event, TaskResult):
-                process_new_result(results_by_process_id, event, domain_url, expected_codes_count)
+            process_event(
+                event,
+                results_by_process_id,
+                processes,
+                domain_url,
+                expected_codes_count,
+            )
 
         except KeyboardInterrupt:
             message = "Выполнение прервано пользователем. Закрытие!"
             logger.info(message)
             kill_processes(processes)
+            break
+        except GeneratorExit as e:
+            message = f"Выполнение прервано из-за: '{e}'"
+            logger.info(message)
             break
         except Exception as e:
             message = "Неотловленное исключение"
@@ -307,7 +350,7 @@ def run_parent_event_loop(
 def main():
     """
     Готовит список аргументов, логер и запускает выполнение
-    событийного цикла по управлению данными QR- и штрихкодов.
+    событийного цикла по обработке событий процессов-сканеров.
     """
     load_dotenv()
     log_path = os.getenv('LOG_PATH', 'cameras.log')
@@ -327,7 +370,7 @@ def main():
                    "В .env через ';' ожидается ровно 2 адреса для подключения.")
         raise ValueError(message)
 
-    logger.add(sink=log_path, level=log_level, format="{time} {level} {message}")
+    logger.add(sink=log_path, level=log_level)
 
     # аргументы для worker_task (кроме queue и worker_id) для запуска в разных процессах
     processes_args = [
