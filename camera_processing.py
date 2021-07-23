@@ -172,10 +172,7 @@ def get_events(
     is_pack_visible_now = False
     is_pack_visible_before = False
 
-    yield StartScanning(
-        message="Начало работы",
-        finish_time=datetime.now(),
-    )
+    yield StartScanning(finish_time=datetime.now())
 
     frame_counter = 0
     while True:
@@ -227,7 +224,4 @@ def get_events(
             images_packdata.clear()
             continue
 
-    yield EndScanning(
-        message="Завершение работы",
-        finish_time=datetime.now(),
-    )
+    yield EndScanning(finish_time=datetime.now())
