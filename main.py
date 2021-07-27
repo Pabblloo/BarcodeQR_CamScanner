@@ -165,7 +165,7 @@ def process_new_result(
         #  отсутствие события с одной из камер
 
         if r1.finish_time - r2.finish_time > MAX_CAMERAS_DIFF_TIME:
-            message = ("Разница между проездом одной и той же пачки на разных камерах "
+            message = ("Разница времени проезда одной и той же пачки на разных камерах "
                        "превысила пороговое значение. (Потенциальный рассинхрон!) "
                        f"pack2={r1} pack1={r2}")
             logger.warning(message)
@@ -311,7 +311,7 @@ def run_parent_event_loop(
     )
 
     results_by_process_id: List[Deque[TaskResult]] = [
-        deque() for _, _ in enumerate(processes_args)
+        deque() for _ in processes_args
     ]
 
     expected_codes_count = 1

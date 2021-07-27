@@ -9,9 +9,9 @@ from typing import List, Tuple, Iterable
 import cv2
 import numpy as np
 import tensorflow as tf
+from numba.cuda import jit
 from numpy import ndarray
 from pyzbar.pyzbar import decode
-
 from tensorflow.python.keras import models
 
 # Размеры исходного изображения
@@ -40,6 +40,7 @@ def get_most_common(values: List[str]) -> str:
     return value
 
 
+@jit(nogil=True, cache=True)
 def dummy_codes(
         pics: Iterable[ndarray],
         width: float,
@@ -62,10 +63,10 @@ def dummy_codes(
 
         for lss in code:
             if lss.type == 'QRCODE':
-                qr_code: str = lss.data.decode('utf-8')
+                qr_code: str = lss.data.decode('utf-8', 'ignore')
                 qr_codes.append(qr_code)
             else:
-                barcode: str = lss.data.decode('utf-8')
+                barcode: str = lss.data.decode('utf-8', 'ignore')
                 barcodes.append(barcode)
 
     qr_code = get_most_common(qr_codes)
