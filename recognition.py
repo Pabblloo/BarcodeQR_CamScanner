@@ -1,4 +1,8 @@
 """
+Чтение QR- и штрихкодов с изображений.
+
+----
+
 Created on Sat Jun  6 12:29:01 2020
 
 @author: sergey
@@ -9,13 +13,14 @@ from typing import List, Tuple, Iterable
 import cv2
 import numpy as np
 import tensorflow as tf
-from numba.cuda import jit
 from numpy import ndarray
 from pyzbar.pyzbar import decode
+
 from tensorflow.python.keras import models
 
+
 # Размеры исходного изображения
-ORIG_X, ORIG_Y = 853, 480
+ORIG_X, ORIG_Y = 400, 200
 # Размеры картинки - входа НС
 PIC_X, PIC_Y = 320, 240
 # Размер матрицы выхода НС
@@ -40,11 +45,8 @@ def get_most_common(values: List[str]) -> str:
     return value
 
 
-@jit(nogil=True, cache=True)
 def dummy_codes(
         pics: Iterable[ndarray],
-        width: float,
-        height: float,
         sizer: float,
 ) -> Tuple[str, str]:
     """Возвращает штрих-код (barcode) и QR-код из серии снимков"""
@@ -52,22 +54,23 @@ def dummy_codes(
     barcodes: List[str] = []
 
     for pic in pics:
-        new_width = int(round(width * sizer))
-        new_height = int(round(height * sizer))
+        new_height, new_width, _ = (int(round(dim * sizer)) for dim in pic.shape)
 
         sized: ndarray = cv2.resize(pic, (new_width, new_height))
         codePict: ndarray = cv2.cvtColor(sized, cv2.COLOR_BGR2GRAY)
         ret, codePict = cv2.threshold(codePict, 100, 255, cv2.THRESH_BINARY)
 
-        code = decode(codePict)
+        codes = decode(codePict)
 
-        for lss in code:
-            if lss.type == 'QRCODE':
-                qr_code: str = lss.data.decode('utf-8', 'ignore')
+        for code in codes:
+            if code.type == 'QRCODE':
+                qr_code: str = code.data.decode('utf-8', 'ignore')
                 qr_codes.append(qr_code)
-            else:
-                barcode: str = lss.data.decode('utf-8', 'ignore')
+            elif code.type == 'EAN13':
+                barcode: str = code.data.decode('utf-8', 'ignore')
                 barcodes.append(barcode)
+            else:
+                pass
 
     qr_code = get_most_common(qr_codes)
     barcode = get_most_common(barcodes)
