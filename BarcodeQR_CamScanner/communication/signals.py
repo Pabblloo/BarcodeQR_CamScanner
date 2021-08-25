@@ -9,7 +9,7 @@ import requests
 from requests.exceptions import RequestException
 from loguru import logger
 
-from communication import wERD
+from communication import _snmp_commands
 
 REQUEST_TIMEOUT_SEC = 2
 
@@ -54,7 +54,7 @@ def notify_that_no_packdata(domain_url: str) -> None:
     # TODO: разобраться в функции ниже (и всём модуле тоже),
     #  проверить исключения
 
-    wERD.snmp_set(wERD.OID['ALARM-1'], wERD.on)
+    _snmp_commands.snmp_set(_snmp_commands.OID['ALARM-1'], _snmp_commands.on)
 
 
 def get_work_mode(domain_url: str) -> Optional[str]:

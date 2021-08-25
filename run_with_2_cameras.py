@@ -2,7 +2,7 @@
 
 from dotenv import load_dotenv
 
-from main import main
+from scan_with_2_cameras import main
 
 
 if __name__ == '__main__':
