@@ -42,7 +42,7 @@ def notify_about_packdata(
             logger.opt(exception=e)
 
 
-def notify_that_no_packdata(domain_url: str) -> None:
+def notify_bad_packdata(domain_url: str) -> None:
     """
     Оповещает сервер, что QR- и штрихкоды не были считаны с текущей пачки.
     """

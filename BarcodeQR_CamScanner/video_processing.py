@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 
 from code_reading import get_codes_from_image, CodeType
-from events import CameraPackResult, CamScannerEvent, EndScanning, StartScanning
+from event_system.events import CameraPackResult, CamScannerEvent, EndScanning, StartScanning
 from pack_recognition.recognizers import BSPackRecognizer
 
 
@@ -49,7 +49,7 @@ def get_events_from_video(
         recognizer_args: tuple = (),
 ) -> Iterable[CamScannerEvent]:
     """
-    Бесконечный итератор, возвращающий события с камеры-сканера.
+    Генератор, возвращающий события с камеры-сканера
     """
     pack_recognizer = BSPackRecognizer(*recognizer_args)
 

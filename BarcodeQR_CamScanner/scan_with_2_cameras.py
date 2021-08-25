@@ -22,15 +22,14 @@ from multiprocessing import Queue, Process
 from queue import Empty
 from typing import Optional
 
-from dotenv import load_dotenv
 from loguru import logger
 
-from BarcodeQR_CamScanner.event_handling import EventProcessor
+from event_system.handling import EventProcessor
+from communication.signals import get_pack_codes_count, notify_bad_packdata, notify_about_packdata
+from event_system.events import (CameraPackResult, CamScannerEvent, TaskError,
+                                 EndScanning, StartScanning, PackBadCodes, PackWithCodes)
+from packs_sync import Interval2CamerasProcessingQueue
 from video_processing import get_events_from_video
-from communication.signals import get_pack_codes_count, notify_that_no_packdata, notify_about_packdata
-from events import (CameraPackResult, CamScannerEvent, TaskError,
-                    EndScanning, StartScanning, PackWithoutCodes, PackWithCodes)
-from packs_sync import IntervalSyncQueue
 
 
 class CameraScannerProcess(Process):
@@ -85,18 +84,20 @@ class CameraScannerProcess(Process):
             pass
 
 
-class MainRunner:
+class RunnerWith2Cameras:
     _queue: Queue
     _processes: list[Process]
 
     def __init__(self, processes_args: list[tuple], domain_url: str):
         self._queue = Queue()
-        self._sync_queue = IntervalSyncQueue()
+        self._sync_queue = Interval2CamerasProcessingQueue()
         self._event_processor = EventProcessor()
         self._processes = self._get_processes(processes_args)
         self._domain_url = domain_url
         self._expected_codes_count = 2
         self._iter_modcounter = 0
+
+        self._init_event_processor()
 
     def _get_processes(self, processes_args) -> list[Process]:
         """Инициализирует и возвращает процессы"""
@@ -124,7 +125,7 @@ class MainRunner:
             self._process_startscanning,
             self._process_endscanning,
             self._process_packwithcodes,
-            self._process_packwithoutcodes,
+            self._process_packbadcodes,
         ]
         for handler in handlers:
             self._event_processor.add_handler(handler)
@@ -155,13 +156,12 @@ class MainRunner:
 
         Завершается при ``KeyboardInterrupt`` (Ctrl+C в терминале)
         """
-        self._init_event_processor()
         self._run_processes()
 
         while True:
             try:
                 self._update_expected_codes_count()
-                events = list(self._sync_queue.get_sync_latest())
+                events = list(self._sync_queue.get_processed_latest())
 
                 event = self._get_event_from_cam()
                 if event is not None:
@@ -184,7 +184,7 @@ class MainRunner:
         msg = (f"Получены данные от процесса #{event.worker_id}: "
                f"QR={event.qr_codes} "
                f"BAR={event.barcodes} "
-               f"время конца пачки='{event.finish_time}'")
+               f"время пачки='{event.start_time} - {event.finish_time}'")
         logger.debug(msg)
         event.receive_time = datetime.now()
         event.is_paired = False
@@ -215,8 +215,8 @@ class MainRunner:
             raise KeyboardInterrupt("Все процессы завершили работу. Закрытие программы")
 
     # noinspection PyUnusedLocal
-    def _process_packwithoutcodes(self, event: PackWithoutCodes):
-        notify_that_no_packdata(self._domain_url)
+    def _process_packbadcodes(self, event: PackBadCodes):
+        notify_bad_packdata(self._domain_url)
 
     def _process_packwithcodes(self, event: PackWithCodes):
         notify_about_packdata(
@@ -257,7 +257,7 @@ def collect_scanners_args() -> list[tuple]:
     ]
 
 
-def main():
+def run():
     """
     Готовит список аргументов, логер и запускает выполнение
     событийного цикла по обработке событий процессов-сканеров.
@@ -269,14 +269,9 @@ def main():
     processes_args = collect_scanners_args()
 
     try:
-        runner = MainRunner(processes_args, domain_url)
+        runner = RunnerWith2Cameras(processes_args, domain_url)
         runner.mainloop_with_lock()
     except BaseException as e:
         logger.critical("Падение с критической ошибкой")
         logger.opt(exception=e)
         raise e
-
-
-if __name__ == '__main__':
-    load_dotenv()
-    main()

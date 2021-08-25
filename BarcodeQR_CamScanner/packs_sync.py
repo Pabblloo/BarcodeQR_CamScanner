@@ -1,3 +1,6 @@
+"""
+Очереди обработки результатов от камер
+"""
 import abc
 from collections import deque
 from datetime import timedelta, datetime
@@ -5,11 +8,11 @@ from typing import Iterable
 
 from loguru import logger
 
-from event_handling import BaseEvent
-from events import CameraPackResult, PackWithCodes, PackWithoutCodes
+from event_system.handling import BaseEvent
+from event_system.events import CameraPackResult, PackWithCodes, PackBadCodes
 
 
-class BasePackSyncQueue(metaclass=abc.ABCMeta):
+class BaseResultProcessingQueue(metaclass=abc.ABCMeta):
     """
     Базовый абстрактный класс для очередей синхронизации
     данных пачек из разных источников
@@ -23,16 +26,16 @@ class BasePackSyncQueue(metaclass=abc.ABCMeta):
         """
 
     @abc.abstractmethod
-    def get_sync_latest(self) -> Iterable[BaseEvent]:
+    def get_processed_latest(self) -> Iterable[BaseEvent]:
         """
         Синхронизирует последние результаты из очереди
         и возвращает последовательность с результатами их синхронизации
         """
 
 
-class IntervalSyncQueue(BasePackSyncQueue):
+class Interval2CamerasProcessingQueue(BaseResultProcessingQueue):
     """
-    Очередь для синхронизации результатов от разных камер в цельные результаты от пачек.
+    Очередь для синхронизации и валидации результатов от 2-ух разных камер в цельные результаты с пачек.
     Синхронизирует пачки группами, опираясь на разницу во времени.
     """
 
@@ -55,7 +58,7 @@ class IntervalSyncQueue(BasePackSyncQueue):
         """
         self._queue.append(result)
 
-    def get_sync_latest(self) -> Iterable[BaseEvent]:
+    def get_processed_latest(self) -> Iterable[BaseEvent]:
         """Синхронизирует пачки с разнык камер по пересечению их временных отрезков"""
         while len(self._queue) > 0 and \
                 datetime.now() - self._queue[0].finish_time > self.RESULT_TIMEOUT_TIME:
@@ -82,12 +85,12 @@ class IntervalSyncQueue(BasePackSyncQueue):
                 qr_codes1 += pack.qr_codes
 
             if len(qr_codes0) == 0 and len(qr_codes1) == 0:
-                yield PackWithoutCodes()
+                yield PackBadCodes()
                 continue
 
             if len(qr_codes0) > 0 and len(qr_codes1) > 0:
                 logger.warning("После сопоставления в группе с обеих сторон оказались коды")
-                yield PackWithoutCodes()
+                yield PackBadCodes()
                 continue
 
             barcodes = barcodes0 + barcodes1
@@ -99,7 +102,7 @@ class IntervalSyncQueue(BasePackSyncQueue):
             if len(qr_codes) != packs_group[0].expected_codes_count:
                 logger.warning(f"Ожидалось {packs_group[0].expected_codes_count} кодов, "
                                f"но в сопоставленной группе их оказалось {len(qr_codes)}")
-                yield PackWithoutCodes()
+                yield PackBadCodes()
                 continue
 
             yield PackWithCodes(
@@ -119,3 +122,56 @@ class IntervalSyncQueue(BasePackSyncQueue):
             bound = max(bound, pack.finish_time)
             group.append(pack)
         return group
+
+
+class InstantCameraProcessingQueue(BaseResultProcessingQueue):
+    """
+    Очередь для обработки результатов с одной камеры.
+    Хранит, валидирует результаты и возвращает соответствующие
+    """
+    _queue: deque[CameraPackResult]
+
+    def __init__(self):
+        self._queue = deque()
+
+    def enqueue(self, result: CameraPackResult) -> None:
+        """
+        Обрабатывает полученную от сканера запись с QR- и шрихкодами.
+        Добавляет её в очередь для обработки.
+        """
+        self._queue.append(result)
+
+    def get_processed_latest(self) -> list[BaseEvent]:
+        """Валидирует пачки с одной камеры"""
+        processed = []
+
+        for pack in self._queue:
+            qr_codes = pack.qr_codes
+            barcodes = pack.barcodes
+
+            if len(qr_codes) == 0:
+                logger.debug("Пачка без QR кодов")
+                processed.append(PackBadCodes())
+                continue
+
+            if len(barcodes) == 0:
+                logger.debug("Пачка с QR кодами, но без штрихкодов")
+                processed.append(PackBadCodes())
+                continue
+
+            missed_barcodes_count = len(qr_codes) - len(barcodes)
+            barcodes += barcodes[-1:] * missed_barcodes_count
+
+            if len(qr_codes) != pack.expected_codes_count:
+                logger.debug(f"Ожидалось {pack.expected_codes_count} кодов, "
+                             f"но с пачки считалось {len(qr_codes)}")
+                processed.append(PackBadCodes())
+                continue
+
+            processed.append(PackWithCodes(
+                qr_codes=qr_codes,
+                barcodes=barcodes,
+            ))
+
+        self._queue.clear()
+        return processed

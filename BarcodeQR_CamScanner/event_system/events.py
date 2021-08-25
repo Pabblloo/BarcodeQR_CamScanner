@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
 
-from BarcodeQR_CamScanner.event_handling import BaseEvent
+from event_system.handling import BaseEvent
 
 
 @dataclass
@@ -29,13 +29,7 @@ class CamScannerEvent(BaseEvent):
 
 
 @dataclass
-class EventWithMessage(CamScannerEvent):
-    """Информация от worker-процесса, содержащая сообщение."""
-    message: Optional[str] = None
-
-
-@dataclass
-class TaskError(EventWithMessage):
+class TaskError(CamScannerEvent):
     """Информация об ошибке из worker-процесса"""
     message: Optional[str] = None
 
@@ -70,7 +64,7 @@ class PackWithCodes(BaseEvent):
 
 
 @dataclass
-class PackWithoutCodes(BaseEvent):
+class PackBadCodes(BaseEvent):
     """
     Конечный результат с пачки, на которой не было обнаружено кодов
     """
