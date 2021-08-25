@@ -9,6 +9,7 @@ import requests
 from requests.exceptions import RequestException
 from loguru import logger
 
+from communication import wERD
 
 REQUEST_TIMEOUT_SEC = 2
 
@@ -45,15 +46,15 @@ def notify_that_no_packdata(domain_url: str) -> None:
     """
     Оповещает сервер, что QR- и штрихкоды не были считаны с текущей пачки.
     """
-    logger.debug("Отправка извещения о пачке без данных")
+    logger.debug("Отправка извещения о некорректной пачке")
 
     if get_work_mode(domain_url) == 'auto':
         return None
 
     # TODO: разобраться в функции ниже (и всём модуле тоже),
-    #  проверить правильность, исключения и раскомментировать
-    #
-    # wERD.snmp_set(er.OID['ALARM-1'], er.on)
+    #  проверить исключения
+
+    wERD.snmp_set(wERD.OID['ALARM-1'], wERD.on)
 
 
 def get_work_mode(domain_url: str) -> Optional[str]:

@@ -87,6 +87,8 @@ class IntervalSyncQueue(BasePackSyncQueue):
 
             if len(qr_codes0) > 0 and len(qr_codes1) > 0:
                 logger.warning("После сопоставления в группе с обеих сторон оказались коды")
+                yield PackWithoutCodes()
+                continue
 
             barcodes = barcodes0 + barcodes1
             qr_codes = qr_codes0 + qr_codes1
@@ -97,6 +99,8 @@ class IntervalSyncQueue(BasePackSyncQueue):
             if len(qr_codes) != packs_group[0].expected_codes_count:
                 logger.warning(f"Ожидалось {packs_group[0].expected_codes_count} кодов, "
                                f"но в сопоставленной группе их оказалось {len(qr_codes)}")
+                yield PackWithoutCodes()
+                continue
 
             yield PackWithCodes(
                 qr_codes=qr_codes,
