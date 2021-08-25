@@ -9,7 +9,7 @@ import requests
 from requests.exceptions import RequestException
 from loguru import logger
 
-from communication import _snmp_commands
+from . import _snmp_commands
 
 REQUEST_TIMEOUT_SEC = 2
 

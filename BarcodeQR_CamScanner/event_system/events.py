@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
 
-from event_system.handling import BaseEvent
+from .handling import BaseEvent
 
 
 @dataclass

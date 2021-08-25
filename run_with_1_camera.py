@@ -2,7 +2,7 @@
 
 from dotenv import load_dotenv
 
-from scan_with_1_camera import run
+from BarcodeQR_CamScanner.scan_with_1_camera import run
 
 
 if __name__ == '__main__':

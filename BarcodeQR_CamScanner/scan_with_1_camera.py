@@ -1,14 +1,12 @@
 import os
-from datetime import datetime
 
 from loguru import logger
 
-from communication.signals import get_pack_codes_count, notify_about_packdata, notify_bad_packdata
-from event_system.handling import EventProcessor
-from event_system.events import (CameraPackResult, TaskError,
-                                 EndScanning, StartScanning, PackBadCodes, PackWithCodes)
-from packs_processing import InstantCameraProcessingQueue
-from video_processing import get_events_from_video
+from .communication.signals import get_pack_codes_count, notify_about_packdata, notify_bad_packdata
+from .event_system.events import *
+from .event_system.handling import EventProcessor
+from .packs_processing import InstantCameraProcessingQueue
+from .video_processing import get_events_from_video
 
 
 class RunnerWith1Camera:

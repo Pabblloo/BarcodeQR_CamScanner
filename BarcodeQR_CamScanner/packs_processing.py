@@ -3,13 +3,13 @@
 """
 import abc
 from collections import deque
-from datetime import timedelta, datetime
+from datetime import timedelta
 from typing import Iterable
 
 from loguru import logger
 
-from event_system.handling import BaseEvent
-from event_system.events import CameraPackResult, PackWithCodes, PackBadCodes
+from .event_system.events import *
+from .event_system.handling import BaseEvent
 
 
 class BaseResultProcessingQueue(metaclass=abc.ABCMeta):
