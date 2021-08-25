@@ -28,7 +28,7 @@ from event_system.handling import EventProcessor
 from communication.signals import get_pack_codes_count, notify_bad_packdata, notify_about_packdata
 from event_system.events import (CameraPackResult, CamScannerEvent, TaskError,
                                  EndScanning, StartScanning, PackBadCodes, PackWithCodes)
-from packs_sync import Interval2CamerasProcessingQueue
+from packs_processing import Interval2CamerasProcessingQueue
 from video_processing import get_events_from_video
 
 
