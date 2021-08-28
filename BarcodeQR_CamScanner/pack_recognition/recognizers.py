@@ -9,13 +9,11 @@
     - и т.п.
 """
 import abc
-from typing import Optional
 
 import cv2
 import numpy as np
-from tensorflow.lite.python.interpreter import Interpreter
 
-from ._evaluation_methods import (get_neuronet_score, get_mog2_foreground_score)
+from ._evaluation_methods import get_mog2_foreground_score
 
 
 class BaseRecognizer(metaclass=abc.ABCMeta):
@@ -28,33 +26,6 @@ class BaseRecognizer(metaclass=abc.ABCMeta):
         """
         Получает текующую оценку изображения по критерию
         """
-
-
-class NeuronetPackRecognizer(BaseRecognizer):
-    """
-    Определитель наличия пачки на изображении. Получает предсказания от нейросети.
-
-    **Осторожно: очень медленно работает**
-
-    Parameters:
-        model_path: путь к ``TF-Lite Flatbuffer`` файлу
-        threshold_value: пороговое значение для активации критерия
-
-    Attributes:
-        _THRESHOLD_SCORE: пороговое значение, меньше которого
-            ``is_recognized`` будет возвращать ``False``
-    """
-    _interpreter: Interpreter
-    _THRESHOLD_SCORE: float
-    _image: Optional[np.ndarray]
-
-    def __init__(self, model_path: str, threshold_value: float = 0.6):
-        self._THRESHOLD_SCORE = threshold_value
-        self._interpreter = Interpreter(model_path=model_path)
-
-    def is_recognized(self, image: np.ndarray) -> bool:
-        score = get_neuronet_score(self._interpreter, image)
-        return score > self._THRESHOLD_SCORE
 
 
 class BSPackRecognizer(BaseRecognizer):

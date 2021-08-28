@@ -2,51 +2,10 @@
 Различные метрики для определения и аппроксимации всего, что может происходить на камерах.
 """
 from functools import reduce
-from typing import Any
 
 import cv2
 import numpy as np
 from skimage.metrics import structural_similarity as ssim
-from tensorflow.lite.python.interpreter import Interpreter
-
-
-def get_neuronet_score(interpreter: Interpreter, image: np.ndarray) -> float:
-    """
-    Оценка наличия пачки на изображении, полученная от нейросети
-
-    **Осторожно: очень долго (200мс/кадр) работает!**
-
-    Args:
-        interpreter: интерпретатор с уже загруженной и обученной нейросетью
-        image: изображение, которое нужно проверить
-
-    Returns:
-        показатель движения на изображении
-            0.0 (движения нет) до 1.0 (на изображении двигаются все пиксели)
-    """
-    input_detail: dict[str, Any]
-    output_detail: dict[str, Any]
-    input_detail = interpreter.get_input_details()[0]
-    output_detail = interpreter.get_output_details()[0]
-
-    input_size = tuple(input_detail['shape'][[2, 1]])
-
-    rgb_image = cv2.resize(image, input_size)
-    rgb_image = cv2.cvtColor(rgb_image, cv2.COLOR_BGR2RGB)
-    rgb_image = np.expand_dims(rgb_image, axis=0)
-
-    img = rgb_image.astype('float32') * (1 / 255)
-
-    try:
-        interpreter.set_tensor(input_detail['index'], img)
-        interpreter.invoke()
-
-        predict_value = interpreter.get_tensor(output_detail['index'])[0][0]
-        return predict_value
-
-    # TODO: проверить наличие и конкретизировать исключение, либо убрать проверку
-    except Exception:
-        return float('nan')
 
 
 def get_absdiff_motion_score(img1: np.ndarray, img2: np.ndarray, img3: np.ndarray) -> float:
