@@ -65,7 +65,7 @@ class BSPackRecognizer(BaseRecognizer):
     _ACTIVATION_COUNT: int
     _DEACTIVATION_COUNT: int
     _THRESHOLD_SCORE: float
-    _learning_rate: float
+    _LEARNING_RATE: float
     _recognized: bool
     _recognize_counter: int
     _mog2: cv2.BackgroundSubtractorMOG2
@@ -76,13 +76,15 @@ class BSPackRecognizer(BaseRecognizer):
             borders: tuple[int, int] = (15, -20),
             learning_rate: float = 1e-4,
             threshold_score: float = 0.3,
+            size_multiplier: float = 0.4,
     ):
 
         self._ACTIVATION_COUNT = max(borders)
         self._DEACTIVATION_COUNT = min(borders)
         self._THRESHOLD_SCORE = threshold_score
+        self._LEARNING_RATE = learning_rate
+        self._SIZE_MULTIPLIER = size_multiplier
 
-        self._learning_rate = learning_rate
         self._recognized = False
         self._recognize_counter = 0
 
@@ -109,6 +111,13 @@ class BSPackRecognizer(BaseRecognizer):
         return self._recognized
 
     def _has_foreground(self, image: np.ndarray) -> bool:
-        learning_rate = self._learning_rate * (not self._recognized)
+        image = self._resize_image(image, self._SIZE_MULTIPLIER)
+        learning_rate = self._LEARNING_RATE * (not self._recognized)
         score = get_mog2_foreground_score(self._mog2, image, learning_rate)
         return score > self._THRESHOLD_SCORE
+
+    @staticmethod
+    def _resize_image(image: np.ndarray, multiplier: float) -> np.ndarray:
+        height = int(multiplier * image.shape[0])
+        width = int(multiplier * image.shape[1])
+        return cv2.resize(image, (width, height))
