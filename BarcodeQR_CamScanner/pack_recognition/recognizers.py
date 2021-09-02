@@ -59,9 +59,12 @@ class NeuronetPackRecognizer(BaseRecognizer):
     def is_recognized(self, image: np.ndarray) -> bool:
         self._skipframe_counter = (self._skipframe_counter + 1) % self._SKIPFRAME_MOD
         if self._skipframe_counter == 0:
-            score = get_neuronet_score(self._interpreter, image)
-            self._recognized = score > self._THRESHOLD_SCORE
+            self._recognized = self._has_pack(image)
         return self._recognized
+
+    def _has_pack(self, image: np.ndarray):
+        score = get_neuronet_score(self._interpreter, image)
+        return score > self._THRESHOLD_SCORE
 
 
 class BSPackRecognizer(BaseRecognizer):
