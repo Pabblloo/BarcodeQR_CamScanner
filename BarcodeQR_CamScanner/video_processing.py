@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 
 from .code_reading import get_codes_from_image, CodeType
-from .event_system._events import *
+from .events._events import *
 from .pack_recognition.recognizers import BSPackRecognizer
 
 

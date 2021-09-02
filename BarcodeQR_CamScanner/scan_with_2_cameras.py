@@ -25,8 +25,8 @@ from typing import Optional
 from loguru import logger
 
 from .communication.signals import get_pack_codes_count, notify_bad_packdata, notify_about_packdata
-from .event_system._events import *
-from .event_system.handling import EventProcessor
+from .events._events import *
+from .events.handling import EventProcessor
 from .packs_processing import Interval2CamerasProcessingQueue
 from .video_processing import get_events_from_video
 

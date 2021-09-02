@@ -8,8 +8,8 @@ from typing import Iterable
 
 from loguru import logger
 
-from .event_system._events import *
-from .event_system.handling import BaseEvent
+from .events._events import *
+from .events.handling import BaseEvent
 
 
 class BaseResultProcessingQueue(metaclass=abc.ABCMeta):
