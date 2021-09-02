@@ -51,10 +51,17 @@ class NeuronetPackRecognizer(BaseRecognizer):
     def __init__(self, model_path: str, threshold_value: float = 0.6):
         self._THRESHOLD_SCORE = threshold_value
         self._interpreter = Interpreter(model_path=model_path)
+        self._interpreter.allocate_tensors()
+        self._SKIPFRAME_MOD = 15
+        self._skipframe_counter = self._SKIPFRAME_MOD + 1
+        self._recognized = False
 
     def is_recognized(self, image: np.ndarray) -> bool:
-        score = get_neuronet_score(self._interpreter, image)
-        return score > self._THRESHOLD_SCORE
+        self._skipframe_counter = (self._skipframe_counter + 1) % self._SKIPFRAME_MOD
+        if self._skipframe_counter == 0:
+            score = get_neuronet_score(self._interpreter, image)
+            self._recognized = score > self._THRESHOLD_SCORE
+        return self._recognized
 
 
 class BSPackRecognizer(BaseRecognizer):
