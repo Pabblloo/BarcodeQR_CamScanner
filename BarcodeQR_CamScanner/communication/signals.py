@@ -1,8 +1,7 @@
 """
-Функциями для отправки результатов работы
+Функции для отправки результатов работы
 программам извне и получению информации от них.
 """
-import threading as tg
 from json import JSONDecodeError
 from time import sleep
 from typing import List, Optional
@@ -23,9 +22,6 @@ def _shutter_task() -> None:
     send_shutter_down()
     sleep(SHUTTER_OPEN_TIME_SEC)
     send_shutter_up()
-
-
-shutter_thread = tg.Thread(target=_shutter_task)
 
 
 def send_shutter_down() -> None:
@@ -70,27 +66,6 @@ def notify_about_packdata(
         except RequestException as e:
             logger.error("Ошибка при попытке отправки кодов на сервер")
             logger.opt(exception=e)
-
-
-def notify_bad_packdata(domain_url: str) -> None:
-    """
-    Оповещает сервер, что QR- и штрихкоды не были считаны с текущей пачки.
-    """
-    global SHUTTER_OPEN_TIME_SEC
-
-    logger.debug("Отправка извещения о некорректной пачке")
-
-    if get_work_mode(domain_url) == 'auto':
-        return None
-
-    try:
-        if shutter_thread.is_alive():
-            logger.error("Попытка сбросить пачку, пока сбрасывается другая пачка")
-            return None
-
-        shutter_thread.start()
-    except Exception:
-        logger.error("Ошибка при попытке сбросить пачку с некорректными данными")
 
 
 def get_work_mode(domain_url: str) -> Optional[str]:
