@@ -1,13 +1,14 @@
 """
 Функции для работы с видеопотоком: чтение QR- и штрихкодов, распознавание наличия пачки
 """
+from datetime import datetime
 from typing import Iterable
 
 import cv2
 import numpy as np
 
 from .code_reading import get_codes_from_image, CodeType
-from .event_system.events import *
+from .event_system._events import *
 from .pack_recognition.recognizers import BSPackRecognizer
 
 
@@ -52,6 +53,7 @@ def get_events_from_video(
     """
     pack_recognizer = BSPackRecognizer(*recognizer_args)
 
+    # noinspection PyUnusedLocal
     is_pack_visible_before = False
     """Была ли ранее замечена пачка"""
     is_pack_visible_now = False

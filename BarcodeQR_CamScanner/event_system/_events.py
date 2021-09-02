@@ -15,6 +15,11 @@ from typing import Optional
 
 from .handling import BaseEvent
 
+__all__ = [
+    'BaseEvent', 'CamScannerEvent', 'TaskError', 'CameraPackResult',
+    'EndScanning', 'StartScanning', 'PackWithCodes', 'PackBadCodes',
+]
+
 
 @dataclass
 class CamScannerEvent(BaseEvent):
