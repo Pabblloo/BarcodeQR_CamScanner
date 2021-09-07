@@ -10,7 +10,7 @@ from .communication.signals import (get_pack_codes_count, notify_about_packdata,
                                     send_shutter_down, send_shutter_up)
 from .events import *
 from .events.handling import *
-from .packs_processing import InstantCameraProcessingQueue, Interval2CamerasProcessingQueue
+from .packs_validation import InstantCameraProcessingQueue, Interval2CamerasProcessingQueue
 from .video_processing import CameraScannerProcess
 
 
