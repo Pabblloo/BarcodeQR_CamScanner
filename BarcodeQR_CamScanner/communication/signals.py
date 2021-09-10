@@ -3,41 +3,14 @@
 программам извне и получению информации от них.
 """
 from json import JSONDecodeError
-from time import sleep
 from typing import List, Optional
 
 import requests
 from loguru import logger
 from requests.exceptions import RequestException
 
-from . import _snmp_commands
 
 REQUEST_TIMEOUT_SEC = 2
-SHUTTER_OPEN_TIME_SEC = 16
-
-
-def _shutter_task() -> None:
-    """Сбрасывает бракованную пачку с конвейера"""
-    global SHUTTER_OPEN_TIME_SEC
-    send_shutter_down()
-    sleep(SHUTTER_OPEN_TIME_SEC)
-    send_shutter_up()
-
-
-def send_shutter_down() -> None:
-    """Опускает шторку для начала сброса пачек"""
-    try:
-        _snmp_commands.snmp_set(_snmp_commands.OID['ALARM-1'], _snmp_commands.on)
-    except Exception:
-        logger.error("Ошибка при отправлении запроса на опускание шторки")
-
-
-def send_shutter_up() -> None:
-    """Поднимает шторку для прекращения сброса пачек"""
-    try:
-        _snmp_commands.snmp_set(_snmp_commands.OID['ALARM-1'], _snmp_commands.off)
-    except Exception:
-        logger.error("Ошибка при отправлении запроса на поднятие шторки")
 
 
 def notify_about_packdata(
@@ -55,17 +28,32 @@ def notify_about_packdata(
     logger.debug(f"Отправка данных пачки на сервер: QR-коды: {qr_codes} штрих-коды: {barcodes}")
 
     for qr_code, barcode in zip(qr_codes, barcodes):
-        send_data = {
-            'qr': qr_code,
-            'barcode': barcode,
-        }
+        send_data = dict(qr=qr_code, barcode=barcode)
 
         try:
             response = requests.put(success_pack_mapping, json=send_data, timeout=REQUEST_TIMEOUT_SEC)
             response.raise_for_status()
         except RequestException as e:
-            logger.error("Ошибка при попытке отправки кодов на сервер")
+            logger.error(f"Ошибка при попытке отправки пары кодов (QR='{qr_code}' BAR='{barcode}') на сервер")
             logger.opt(exception=e)
+
+
+def notify_about_bad_packdata(domain_url: str) -> None:
+    """
+    Оповещает сервер, что QR- и штрихкоды не были считаны с пачки
+    """
+    global REQUEST_TIMEOUT_SEC
+    # TODO: указать адрес ниже
+    bad_pack_mapping = f'{domain_url}/api/v1_0/!!__TODO__FILL_ME_!!'
+    logger.warning("Путь для запросов не задан!")
+
+    logger.debug("Отправка извещения о пачке с некорректными кодами")
+    try:
+        response = requests.post(bad_pack_mapping, timeout=REQUEST_TIMEOUT_SEC)
+        response.raise_for_status()
+    except RequestException as e:
+        logger.error("Ошибка при попытке отправки извещения о бракованной пачке на сервер")
+        logger.opt(exception=e)
 
 
 def get_work_mode(domain_url: str) -> Optional[str]:
@@ -92,33 +80,3 @@ def get_work_mode(domain_url: str) -> Optional[str]:
         return None
 
     return work_mode
-
-
-def get_pack_codes_count(domain_url: str) -> Optional[int]:
-    """
-    Узнаёт от сервера, сколько QR-кодов ожидать на одной пачке
-    """
-    global REQUEST_TIMEOUT_SEC
-    qr_count_mapping = f'{domain_url}/api/v1_0/current_batch'
-
-    logger.debug("Получение данных об ожидаемом кол-ве QR-кодов")
-    try:
-        response = requests.get(qr_count_mapping, timeout=REQUEST_TIMEOUT_SEC)
-        response.raise_for_status()
-    except RequestException as e:
-        logger.error("Ошибка при попытке получить от сервера ожидаемое кол-во пачек")
-        logger.opt(exception=e)
-        return None
-
-    try:
-        data = response.json()
-    except JSONDecodeError as e:
-        logger.error("Ошибка при декодировании JSON-ответа с ожидаемым кол-вом пачек")
-        logger.opt(exception=e)
-        return None
-
-    packs_in_block = data.get('params', {}).get('multipacks_after_pintset', None)
-    if packs_in_block is None:
-        logger.error("Ошибка при извлечении из JSON ответа с ожидаемым кол-вом пачек")
-        return None
-    return int(packs_in_block)

@@ -6,8 +6,7 @@ from typing import Optional
 
 from loguru import logger
 
-from .communication.signals import (get_pack_codes_count, notify_about_packdata,
-                                    send_shutter_down, send_shutter_up)
+from .communication.signals import (notify_about_packdata, notify_about_bad_packdata)
 from .events import *
 from .events.handling import *
 from .packs_validation import InstantCameraProcessingQueue, Interval2CamerasProcessingQueue
@@ -17,7 +16,6 @@ from .video_processing import CameraScannerProcess
 # noinspection PyPep8Naming
 class SingleCameraWorker(EventWorker):
     start_events = [
-        UpdateExpectedCodesCount(update_time=datetime.now()),
         ReadEventFromProcessQueue(),
         ReadResultsFromValidationQueue(read_time=datetime.now()),
         Wait(),
@@ -27,7 +25,7 @@ class SingleCameraWorker(EventWorker):
         self._queue = mp.Queue()
         self._cam_validating_queue = InstantCameraProcessingQueue()
         self._domain_url = domain_url
-        self._expected_codes_count = 2
+        self._expected_codes_count = 1
         self._cameras_args = cameras_args[:1]
         self._processes = self._get_processes(self._cameras_args)
         super().__init__()
@@ -80,11 +78,6 @@ class SingleCameraWorker(EventWorker):
         except Empty:
             return None
 
-    def _update_expected_codes_count(self) -> None:
-        new_codes_count = get_pack_codes_count(self._domain_url)
-        if new_codes_count is not None:
-            self.expected_codes_count = new_codes_count
-
     # обработчики событий
 
     def _process_CameraPackResult(self, event: CameraPackResult) -> list[BaseEvent]:
@@ -97,17 +90,6 @@ class SingleCameraWorker(EventWorker):
         event.expected_codes_count = self._expected_codes_count
         self._cam_validating_queue.enqueue(event)
         return self._cam_validating_queue.get_processed_latest()
-
-    def _process_UpdateExpectedCodesCount(
-            self,
-            event: UpdateExpectedCodesCount,
-    ) -> UpdateExpectedCodesCount:
-        now = datetime.now()
-        if now < event.update_time:
-            return event
-        self._update_expected_codes_count()
-        update_time = datetime.now() + timedelta(seconds=10)
-        return UpdateExpectedCodesCount(update_time=update_time)
 
     @staticmethod
     def _process_TaskError(event: TaskError) -> None:
@@ -128,33 +110,16 @@ class SingleCameraWorker(EventWorker):
             qr_codes=event.qr_codes,
         )
 
+    # noinspection PyUnusedLocal
+    def _process_PackBadCodes(self, event: PackBadCodes) -> None:
+        notify_about_bad_packdata(self._domain_url)
+
     def _process_ReadEventFromProcessQueue(
             self,
             event: ReadEventFromProcessQueue,
     ) -> tuple[ReadEventFromProcessQueue, Optional[CamScannerEvent]]:
         new_event = self._get_event_from_cam()
         return event, new_event
-
-    # noinspection PyUnusedLocal
-    @staticmethod
-    def _process_PackBadCodes(event: PackBadCodes) -> tuple[OpenGate, CloseGate]:
-        open_time = datetime.now() + timedelta(seconds=2)
-        close_time = datetime.now() + timedelta(seconds=16)
-        return OpenGate(open_time=open_time), CloseGate(close_time=close_time)
-
-    @staticmethod
-    def _process_OpenGate(event: OpenGate) -> Optional[OpenGate]:
-        now = datetime.now()
-        if now < event.open_time:
-            return event
-        send_shutter_down()
-
-    @staticmethod
-    def _process_CloseGate(event: CloseGate) -> Optional[CloseGate]:
-        now = datetime.now()
-        if now < event.close_time:
-            return event
-        send_shutter_up()
 
     def _process_ReadResultsFromSyncQueue(
             self, event: ReadResultsFromValidationQueue,
@@ -186,7 +151,7 @@ class DuoCamerasWorker(EventWorker):
         self._queue = mp.Queue()
         self._cam_sync_queue = Interval2CamerasProcessingQueue()
         self._domain_url = domain_url
-        self._expected_codes_count = 2
+        self._expected_codes_count = 1
         self._cameras_args = cameras_args[:2]
         self._processes = self._get_processes(self._cameras_args)
         super().__init__()
@@ -239,11 +204,6 @@ class DuoCamerasWorker(EventWorker):
         except Empty:
             return None
 
-    def _update_expected_codes_count(self) -> None:
-        new_codes_count = get_pack_codes_count(self._domain_url)
-        if new_codes_count is not None:
-            self.expected_codes_count = new_codes_count
-
     # обработчики событий
 
     def _process_CameraPackResult(self, event: CameraPackResult) -> list[BaseEvent]:
@@ -256,17 +216,6 @@ class DuoCamerasWorker(EventWorker):
         event.expected_codes_count = self._expected_codes_count
         self._cam_sync_queue.enqueue(event)
         return self._cam_sync_queue.get_processed_latest()
-
-    def _process_UpdateExpectedCodesCount(
-            self,
-            event: UpdateExpectedCodesCount,
-    ) -> UpdateExpectedCodesCount:
-        now = datetime.now()
-        if now < event.update_time:
-            return event
-        self._update_expected_codes_count()
-        update_time = datetime.now() + timedelta(seconds=10)
-        return UpdateExpectedCodesCount(update_time=update_time)
 
     @staticmethod
     def _process_TaskError(event: TaskError) -> None:
@@ -300,20 +249,6 @@ class DuoCamerasWorker(EventWorker):
         open_time = datetime.now() + timedelta(seconds=2)
         close_time = datetime.now() + timedelta(seconds=16)
         return OpenGate(open_time=open_time), CloseGate(close_time=close_time)
-
-    @staticmethod
-    def _process_OpenGate(event: OpenGate) -> Optional[OpenGate]:
-        now = datetime.now()
-        if now < event.open_time:
-            return event
-        send_shutter_down()
-
-    @staticmethod
-    def _process_CloseGate(event: CloseGate) -> Optional[CloseGate]:
-        now = datetime.now()
-        if now < event.close_time:
-            return event
-        send_shutter_up()
 
     def _process_ReadResultsFromValidationQueue(
             self,
