@@ -20,8 +20,10 @@ SHUTTER_OPEN_TIME_SEC = 16
 def _shutter_task() -> None:
     """Сбрасывает бракованную пачку с конвейера"""
     global SHUTTER_OPEN_TIME_SEC
+    logger.info("Сброс открыт")
     send_shutter_down()
     sleep(SHUTTER_OPEN_TIME_SEC)
+    logger.info("Сброс закрыт")
     send_shutter_up()
 
 

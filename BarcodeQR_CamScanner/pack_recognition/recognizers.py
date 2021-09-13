@@ -51,6 +51,7 @@ class NeuronetPackRecognizer(BaseRecognizer):
     def __init__(self, model_path: str, threshold_value: float = 0.6):
         self._THRESHOLD_SCORE = threshold_value
         self._interpreter = Interpreter(model_path=model_path)
+        self._interpreter.allocate_tensors()
 
     def is_recognized(self, image: np.ndarray) -> bool:
         score = get_neuronet_score(self._interpreter, image)
@@ -75,7 +76,7 @@ class BSPackRecognizer(BaseRecognizer):
             background: np.ndarray = None,
             borders: tuple[int, int] = (15, -20),
             learning_rate: float = 1e-4,
-            threshold_score: float = 0.3,
+            threshold_score: float = 0.65,
             size_multiplier: float = 0.4,
     ):
 
