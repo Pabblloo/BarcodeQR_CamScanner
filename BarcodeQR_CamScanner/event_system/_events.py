@@ -73,3 +73,5 @@ class PackBadCodes(BaseEvent):
     """
     Конечный результат с пачки, на которой не было обнаружено кодов
     """
+    qr_codes: list[str] = field(default_factory=list)
+    barcodes: list[str] = field(default_factory=list)

@@ -98,6 +98,11 @@ class RunnerWith1Camera:
 
     # noinspection PyUnusedLocal
     def _process_packbadcodes(self, event: PackBadCodes):
+        notify_about_packdata(
+            self._domain_url,
+            barcodes=event.barcodes,
+            qr_codes=event.qr_codes,
+        )
         notify_bad_packdata(self._domain_url)
 
     def _process_packwithcodes(self, event: PackWithCodes):
