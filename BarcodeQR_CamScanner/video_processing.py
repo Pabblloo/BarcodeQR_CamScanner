@@ -3,6 +3,7 @@
 """
 from datetime import datetime
 from typing import Iterable
+import multiprocessing as mp
 
 import cv2
 import numpy as np
@@ -109,3 +110,50 @@ def _resize_image(image: np.ndarray, sizer: float) -> np.ndarray:
     """Меняет размер изображения не изменяя соотношения"""
     shape = tuple(int(v * sizer) for v in image.shape[:2])
     return cv2.resize(image, shape[::-1])
+
+
+class CameraScannerProcess(mp.Process):
+    """
+    Процесс - источник событий с камеры.
+    Общается с управляющим процессом через ``queue``.
+    """
+
+    def __init__(self, *args):
+        super().__init__(
+            target=self.task,
+            args=tuple(args),
+            daemon=True
+        )
+
+    @staticmethod
+    def task(
+            queue: mp.Queue,
+            worker_id: int,
+            video_url: str,
+            display_window: bool,
+            auto_reconnect: bool,
+    ) -> None:
+        """
+        Метод для запуска в отдельном процессе.
+        Бесконечное читает QR-, штрихкоды с выбранной камеры
+        и отправляет их данные базовому процессу через ``queue``.
+        Кладёт в ``queue`` следующие события-наследники от ``CamScannerEvent``:
+        - В случае ошибок экземпляр ``TaskError`` с информацией об ошибке.
+        - В случае успешной обработки экземпляр ``CameraPackResult`` со считанными данными.
+        """
+        try:
+            events = get_events_from_video(
+                video_url=video_url,
+                display_window=display_window,
+                auto_reconnect=auto_reconnect,
+            )
+
+            # бесконечный цикл, который получает события от камеры и кладёт их в очередь
+            for event in events:
+                event.worker_id = worker_id
+                event.receive_time = None
+
+                # отправка события основному процессу
+                queue.put(event)
+        except KeyboardInterrupt:
+            pass

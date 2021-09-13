@@ -1,5 +1,8 @@
+import multiprocessing as mp
 import os
 from datetime import datetime
+from queue import Empty
+from typing import Optional
 
 from loguru import logger
 
@@ -7,7 +10,7 @@ from .communication.signals import get_pack_codes_count, notify_about_packdata, 
 from .event_system._events import *
 from .event_system.handling import EventProcessor
 from .packs_processing import InstantCameraProcessingQueue
-from .video_processing import get_events_from_video
+from .video_processing import CameraScannerProcess
 
 
 class RunnerWith1Camera:
@@ -18,7 +21,9 @@ class RunnerWith1Camera:
         self._expected_codes_count = 2
         self._iter_modcounter = 0
         self._camera_args = camera_args
-
+        self._queue = mp.Queue()
+        self._cameras_args = [camera_args]
+        self._processes = self._get_processes(self._cameras_args)
         self._init_event_processor()
 
     def _init_event_processor(self):
@@ -42,6 +47,33 @@ class RunnerWith1Camera:
             self.expected_codes_count = new_codes_count
         self._iter_modcounter = (self._iter_modcounter + 1) % ITERATION_PER_REQUEST
 
+    def _get_processes(self, processes_args: list[tuple]) -> list[CameraScannerProcess]:
+        """Инициализирует и возвращает процессы"""
+        processes = [CameraScannerProcess(self._queue, worker_id, *args)
+                     for worker_id, args in enumerate(processes_args)]
+        return processes
+
+    def _run_processes(self) -> None:
+        """Запускает процессы"""
+        for process in self._processes:
+            process.start()
+
+    def _kill_processes(self) -> None:
+        """Убивает процессы"""
+        for process in self._processes:
+            if not process.is_alive():
+                continue
+            process.terminate()
+            process.join()
+
+    def _get_event_from_cam(self) -> Optional[CamScannerEvent]:
+        QUEUE_REQUEST_TIMEOUT_SEC = 0.5
+        try:
+            event = self._queue.get(timeout=QUEUE_REQUEST_TIMEOUT_SEC)
+            return event
+        except Empty:
+            return None
+
     def mainloop_with_lock(self) -> None:
         """
         Запускает обработку QR- и штрихкодов с камеры,
@@ -51,12 +83,15 @@ class RunnerWith1Camera:
 
         Завершается при ``KeyboardInterrupt`` (Ctrl+C в терминале)
         """
-        events_from_cam = get_events_from_video(*self._camera_args)
+        self._run_processes()
 
-        for new_event in events_from_cam:
+        while True:
             try:
                 self._update_expected_codes_count()
-                self._event_processor.process_event(new_event)
+
+                new_event = self._get_event_from_cam()
+                if new_event is not None:
+                    self._event_processor.process_event(new_event)
 
                 events = list(self._processing_queue.get_processed_latest())
                 for event in events:
@@ -133,7 +168,6 @@ def collect_scanner_args() -> tuple:
         video_urls[0],
         display_window,
         auto_reconnect,
-        tuple(),
     )
 
 

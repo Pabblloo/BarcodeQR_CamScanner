@@ -14,25 +14,14 @@ from requests.exceptions import RequestException
 from . import _snmp_commands
 
 REQUEST_TIMEOUT_SEC = 2
-SHUTTER_OPEN_TIME_SEC = 16
-
-
-def _shutter_task() -> None:
-    """Сбрасывает бракованную пачку с конвейера"""
-    global SHUTTER_OPEN_TIME_SEC
-    logger.info("Сброс открыт")
-    send_shutter_down()
-    sleep(SHUTTER_OPEN_TIME_SEC)
-    logger.info("Сброс закрыт")
-    send_shutter_up()
-
-
-shutter_thread = tg.Thread(target=_shutter_task)
+SHUTTER_WAIT_TIME_SEC = 10
+SHUTTER_OPEN_TIME_SEC = 25
 
 
 def send_shutter_down() -> None:
     """Опускает шторку для начала сброса пачек"""
     try:
+        logger.info("Сброс открыт")
         _snmp_commands.snmp_set(_snmp_commands.OID['ALARM-1'], _snmp_commands.on)
     except Exception:
         logger.error("Ошибка при отправлении запроса на опускание шторки")
@@ -41,6 +30,7 @@ def send_shutter_down() -> None:
 def send_shutter_up() -> None:
     """Поднимает шторку для прекращения сброса пачек"""
     try:
+        logger.info("Сброс закрыт")
         _snmp_commands.snmp_set(_snmp_commands.OID['ALARM-1'], _snmp_commands.off)
     except Exception:
         logger.error("Ошибка при отправлении запроса на поднятие шторки")
@@ -80,19 +70,23 @@ def notify_bad_packdata(domain_url: str) -> None:
     """
     global SHUTTER_OPEN_TIME_SEC
 
+    def _shutter_task() -> None:
+        """Сбрасывает бракованную пачку с конвейера"""
+        global SHUTTER_OPEN_TIME_SEC, SHUTTER_WAIT_TIME_SEC
+        sleep(SHUTTER_WAIT_TIME_SEC)
+        send_shutter_down()
+        sleep(SHUTTER_OPEN_TIME_SEC)
+        send_shutter_up()
+
     logger.debug("Отправка извещения о некорректной пачке")
 
     if get_work_mode(domain_url) == 'auto':
-        return None
-
-    try:
-        if shutter_thread.is_alive():
-            logger.error("Попытка сбросить пачку, пока сбрасывается другая пачка")
-            return None
-
-        shutter_thread.start()
-    except Exception:
-        logger.error("Ошибка при попытке сбросить пачку с некорректными данными")
+        try:
+            t = tg.Thread(target=_shutter_task)
+            t.setDaemon(True)
+            t.start()
+        except Exception:
+            logger.error("Ошибка при попытке сбросить пачку с некорректными данными")
 
 
 def get_work_mode(domain_url: str) -> Optional[str]:
