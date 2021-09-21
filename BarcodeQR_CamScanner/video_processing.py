@@ -10,7 +10,7 @@ import numpy as np
 
 from .code_reading import get_codes_from_image, CodeType
 from .event_system._events import *
-from .pack_recognition.recognizers import BSPackRecognizer
+from .pack_recognition.recognizers import BSPackRecognizer, SensorPackRecognizer
 
 
 def _get_images_from_source(
@@ -52,7 +52,7 @@ def get_events_from_video(
     """
     Генератор, возвращающий события с камеры-сканера
     """
-    pack_recognizer = BSPackRecognizer(*recognizer_args)
+    pack_recognizer = SensorPackRecognizer(detector_ip='192.168.1.1')
 
     # noinspection PyUnusedLocal
     is_pack_visible_before = False
